@@ -33,6 +33,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
 import java.io.File;
+import java.io.FilenameFilter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -40,18 +41,19 @@ import java.util.Comparator;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 
 class UpdateSiteActivatorTest {
 
 
-    private final UpdateSiteActivator usa = new UpdateSiteActivator();
-
-
     @SuppressWarnings("AccessOfSystemProperties")
-    private static final String IJ_PATH = System.getProperty("user.dir") + File.separator + "IJ";
+    private static final String              IJ_PATH = System.getProperty("user.dir") + File.separator + "IJ";
+    private final        UpdateSiteActivator usa     = new UpdateSiteActivator();
 
 
     private static void deleteRecursively(Path rootPath) throws IOException {
@@ -77,7 +79,6 @@ class UpdateSiteActivatorTest {
 
         //noinspection AccessOfSystemProperties
         System.setProperty("plugins.dir", pluginsPath);
-        //update();
     }
 
 
@@ -89,14 +90,14 @@ class UpdateSiteActivatorTest {
 
 
     @Test
-    void findUpdateSiteTest() {
+    void testFindUpdateSite() {
         UpdateSite site = usa.findUpdateSite("Fiji");
         assertEquals("https://update.fiji.sc/", site.getURL(), "URL mismatch.");
     }
 
 
     @Test
-    void findUpdateSiteErrorTest() {
+    void testFindUpdateSiteError() {
         UpdateSite site = usa.findUpdateSite("Tutu");
         assertNull(site, "Site should not have been found.");
     }
@@ -104,7 +105,7 @@ class UpdateSiteActivatorTest {
 
     @ParameterizedTest
     @CsvSource({"OMERO 5.5-5.6,true", "OMERO 5.5-5.6,false", "tutu,false"})
-    void activate1Test(String name, boolean result) {
+    void testActivate1(String name, boolean result) {
         boolean activated = usa.activate(name);
         assertEquals(result, activated, "Site activation did not go as expected.");
     }
@@ -112,10 +113,54 @@ class UpdateSiteActivatorTest {
 
     @SuppressWarnings("HardcodedFileSeparator")
     @ParameterizedTest
-    @CsvSource({"tata,https://localhost/tata/,true", "tata,https://localhost/tutu/,true", "tata,https://localhost/tutu/,false"})
-    void activate2Test(String name, String url, boolean result) {
+    @CsvSource({"tata,https://localhost/tata/,true",
+                "tata,https://localhost/tutu/,true",
+                "tata,https://localhost/tutu/,false"})
+    void testActivate2(String name, String url, boolean result) {
         boolean activated = usa.activate(name, url);
         assertEquals(result, activated, "Site activation did not go as expected.");
+    }
+
+
+    @Test
+    void testActivateAndUpdate1() {
+        boolean activated = usa.activateAndUpdate("IJPB-plugins");
+        assertTrue(activated, "IJPB-plugins was not activated.");
+
+        File   pluginsDir = new File(IJ_PATH + File.separator + "plugins");
+        File[] files      = pluginsDir.listFiles(new NameFilter("MorphoLibJ_-.*.jar"));
+        assertNotNull(files, "Matching files is a null array.");
+        assertNotEquals(0, files.length, "No matching file found.");
+    }
+
+
+    @Test
+    void testActivateAndUpdate2() {
+        boolean activated = usa.activateAndUpdate("ilastik", "https://sites.imagej.net/Ilastik/");
+        assertTrue(activated, "ilastik was not activated.");
+
+        File   pluginsDir = new File(IJ_PATH + File.separator + "plugins");
+        File[] files      = pluginsDir.listFiles(new NameFilter("ilastik4ij-.*.jar"));
+        assertNotNull(files, "Matching files is a null array.");
+        assertNotEquals(0, files.length, "No matching file found.");
+    }
+
+
+    private static class NameFilter implements FilenameFilter {
+
+        private final String regex;
+
+
+        NameFilter(String regex) {
+            this.regex = regex;
+        }
+
+
+        @Override
+        public boolean accept(File dir, String name) {
+            return name.matches(regex);
+        }
+
     }
 
 }

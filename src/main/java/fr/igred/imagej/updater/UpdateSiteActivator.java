@@ -53,10 +53,11 @@ import net.imagej.updater.util.StderrProgress;
 import org.xml.sax.SAXException;
 
 import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.transform.TransformerConfigurationException;
 import java.io.File;
+import java.io.IOException;
 import java.lang.invoke.MethodHandles;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.logging.Logger;
 
 
@@ -124,6 +125,18 @@ public class UpdateSiteActivator {
     }
 
 
+    private boolean writeFiles() {
+        boolean written = false;
+        try {
+            files.write();
+            written = true;
+        } catch (TransformerConfigurationException | IOException | SAXException e) {
+            logger.severe(String.format("Could not save modifications: %s", e.getMessage()));
+        }
+        return written;
+    }
+
+
     /**
      * Activates an update site with the given name and URL.
      *
@@ -137,24 +150,19 @@ public class UpdateSiteActivator {
         boolean inactive    = true;
         boolean urlMismatch = false;
 
-        List<String> args = new ArrayList<>(2);
-
         UpdateSite site = findUpdateSite(name);
         if (site != null) {
             String siteURL = site.getURL();
-            args.add(site.getName());
-            args.add(url);
             if (site.isActive()) inactive = false;
             if (!url.equals(siteURL)) urlMismatch = true;
             if (inactive || urlMismatch) {
-                cmd.addOrEditUploadSite(args, false);
-                activated = true;
+                site.setURL(url);
+                site.setActive(true);
+                activated = writeFiles();
             }
         } else {
-            args.add(name);
-            args.add(url);
-            cmd.addOrEditUploadSite(args, true);
-            activated = true;
+            files.addUpdateSite(name, url, null, null, 0L);
+            activated = writeFiles();
         }
         if (!inactive) {
             String msg = String.format("Update site \"%s\" is already active.", name);
@@ -183,11 +191,8 @@ public class UpdateSiteActivator {
             String msg = String.format("Update site \"%s\" could not be found.", name);
             logger.info(msg);
         } else if (!site.isActive()) {
-            List<String> args = new ArrayList<>(2);
-            args.add(site.getName());
-            args.add(site.getURL());
-            cmd.addOrEditUploadSite(args, false);
-            activated = true;
+            site.setActive(true);
+            activated = writeFiles();
         } else {
             String msg = String.format("Update site \"%s\" is already active.", name);
             logger.warning(msg);
