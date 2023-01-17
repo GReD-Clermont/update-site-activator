@@ -29,6 +29,8 @@ import net.imagej.updater.UpdateSite;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import java.io.File;
 import java.io.IOException;
@@ -37,15 +39,15 @@ import java.nio.file.Path;
 import java.util.Comparator;
 import java.util.stream.Stream;
 
-import static fr.igred.imagej.updater.UpdateSiteActivator.activate;
-import static fr.igred.imagej.updater.UpdateSiteActivator.findUpdateSite;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 
 class UpdateSiteActivatorTest {
+
+
+    private final UpdateSiteActivator usa = new UpdateSiteActivator();
 
 
     @SuppressWarnings("AccessOfSystemProperties")
@@ -75,6 +77,7 @@ class UpdateSiteActivatorTest {
 
         //noinspection AccessOfSystemProperties
         System.setProperty("plugins.dir", pluginsPath);
+        //update();
     }
 
 
@@ -86,23 +89,33 @@ class UpdateSiteActivatorTest {
 
 
     @Test
-    void findUpdateSiteTest() throws Exception {
-        UpdateSite site = findUpdateSite("Fiji");
+    void findUpdateSiteTest() {
+        UpdateSite site = usa.findUpdateSite("Fiji");
         assertEquals("https://update.fiji.sc/", site.getURL(), "URL mismatch.");
     }
 
 
     @Test
-    void findUpdateSiteErrorTest() throws Exception {
-        UpdateSite site = findUpdateSite("Tutu");
+    void findUpdateSiteErrorTest() {
+        UpdateSite site = usa.findUpdateSite("Tutu");
         assertNull(site, "Site should not have been found.");
     }
 
 
-    @Test
-    void activate1Test() throws Exception {
-        boolean activated = activate("OMERO 5.5-5.6");
-        assertTrue(activated, "Site was not activated.");
+    @ParameterizedTest
+    @CsvSource({"OMERO 5.5-5.6,true", "OMERO 5.5-5.6,false", "tutu,false"})
+    void activate1Test(String name, boolean result) {
+        boolean activated = usa.activate(name);
+        assertEquals(result, activated, "Site activation did not go as expected.");
+    }
+
+
+    @SuppressWarnings("HardcodedFileSeparator")
+    @ParameterizedTest
+    @CsvSource({"tata,https://localhost/tata/,true", "tata,https://localhost/tutu/,true", "tata,https://localhost/tutu/,false"})
+    void activate2Test(String name, String url, boolean result) {
+        boolean activated = usa.activate(name, url);
+        assertEquals(result, activated, "Site activation did not go as expected.");
     }
 
 }

@@ -46,23 +46,24 @@ import ij.IJ;
 import ij.gui.GenericDialog;
 import net.imagej.updater.CheckForUpdates;
 import net.imagej.updater.CommandLine;
+import net.imagej.updater.FilesCollection;
 import net.imagej.updater.UpdateSite;
 import net.imagej.updater.util.AvailableSites;
+import net.imagej.updater.util.StderrProgress;
+import org.xml.sax.SAXException;
 
+import javax.xml.parsers.ParserConfigurationException;
 import java.io.File;
-import java.io.IOException;
 import java.lang.invoke.MethodHandles;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Function;
 import java.util.logging.Logger;
-import java.util.stream.Collectors;
 
 
 /**
- * Utility class to activate an update site and download its files.
+ * Class to activate update sites and download their files.
  */
-public final class UpdateSiteActivator {
+public class UpdateSiteActivator {
 
     /** The logger for this class. */
     private static final Logger logger = Logger.getLogger(MethodHandles.lookup().lookupClass().getSimpleName());
@@ -70,37 +71,36 @@ public final class UpdateSiteActivator {
     /** The command line interface. */
     private static final CommandLine cmd = new CommandLine(new File(IJ.getDir("imagej")), 100);
 
+    /** ImageJ directory. */
+    private final File            ijDir = new File(IJ.getDir("imagej"));
+    /** Collection of file objects. */
+    private final FilesCollection files = new FilesCollection(ijDir);
 
-    /** Private constructor. */
-    private UpdateSiteActivator() {
+
+    /**
+     * Default constructor. Initializes update sites, downloads index and checksums.
+     */
+    public UpdateSiteActivator() {
+        AvailableSites.initializeAndAddSites(files);
+        String warnings = "";
+        try {
+            warnings = files.downloadIndexAndChecksum(new StderrProgress(100));
+        } catch (ParserConfigurationException | SAXException e) {
+            logger.warning(e.getMessage());
+        }
+        if (!warnings.isEmpty()) {
+            logger.warning(warnings);
+        }
     }
 
 
+    /** Creates a confirmation dialog. */
     private static GenericDialog createConfirmationDialog(String updateSite) {
         String        title   = "Activate update site?";
         String        message = String.format("An update site (%s) should be activated. Do you accept it?", updateSite);
         GenericDialog dialog  = new GenericDialog(title);
         dialog.addMessage(message);
         return dialog;
-    }
-
-
-    /**
-     * Finds an UpdateSite with the given name.
-     *
-     * @param name The name of the UpdateSite.
-     *
-     * @return The UpdateSite.
-     *
-     * @throws IOException Cannot retrieve update sites.
-     */
-    static UpdateSite findUpdateSite(String name) throws IOException {
-        return AvailableSites.getAvailableSites()
-                             .values()
-                             .stream()
-                             .collect(Collectors.toMap(UpdateSite::getName,
-                                                       Function.identity()))
-                             .get(name);
     }
 
 
@@ -113,16 +113,26 @@ public final class UpdateSiteActivator {
 
 
     /**
+     * Finds an UpdateSite with the given name.
+     *
+     * @param name The name of the UpdateSite.
+     *
+     * @return The UpdateSite.
+     */
+    UpdateSite findUpdateSite(String name) {
+        return files.getUpdateSite(name, true);
+    }
+
+
+    /**
      * Activates an update site with the given name and URL.
      *
      * @param name The name of the update site.
      * @param url  The URL of the update site.
      *
      * @return {@code true} if the site was activated, {@code false} otherwise.
-     *
-     * @throws IOException Cannot retrieve update sites.
      */
-    public static boolean activate(String name, String url) throws IOException {
+    public boolean activate(String name, String url) {
         boolean activated   = false;
         boolean inactive    = true;
         boolean urlMismatch = false;
@@ -133,9 +143,9 @@ public final class UpdateSiteActivator {
         if (site != null) {
             String siteURL = site.getURL();
             args.add(site.getName());
-            args.add(siteURL);
+            args.add(url);
             if (site.isActive()) inactive = false;
-            if (url.equals(siteURL)) urlMismatch = true;
+            if (!url.equals(siteURL)) urlMismatch = true;
             if (inactive || urlMismatch) {
                 cmd.addOrEditUploadSite(args, false);
                 activated = true;
@@ -164,10 +174,8 @@ public final class UpdateSiteActivator {
      * @param name The name of the update site.
      *
      * @return {@code true} if the site was activated, {@code false} otherwise.
-     *
-     * @throws IOException Cannot retrieve update sites.
      */
-    public static boolean activate(String name) throws IOException {
+    public boolean activate(String name) {
         boolean activated = false;
 
         UpdateSite site = findUpdateSite(name);
@@ -195,10 +203,8 @@ public final class UpdateSiteActivator {
      * @param name The name of the update site.
      *
      * @return {@code true} if the site was activated, {@code false} otherwise.
-     *
-     * @throws IOException Cannot retrieve update sites.
      */
-    public static boolean activateAndUpdate(String name) throws IOException {
+    public boolean activateAndUpdate(String name) {
         boolean activated = activate(name);
         if (activated) {
             update();
@@ -215,10 +221,8 @@ public final class UpdateSiteActivator {
      * @param url  The URL of the update site.
      *
      * @return {@code true} if the site was activated, {@code false} otherwise.
-     *
-     * @throws IOException Cannot retrieve update sites.
      */
-    public static boolean activateAndUpdate(String name, String url) throws IOException {
+    public boolean activateAndUpdate(String name, String url) {
         boolean activated = activate(name, url);
         if (activated) {
             update();
@@ -232,10 +236,8 @@ public final class UpdateSiteActivator {
      * Asks the user for a confirmation before activating the update site with the given name, and updating Fiji.
      *
      * @param name The name of the update site.
-     *
-     * @throws IOException Cannot retrieve update sites.
      */
-    public static void confirmActivation(String name) throws IOException {
+    public void confirmActivation(String name) {
         GenericDialog dialog = createConfirmationDialog(name);
         dialog.showDialog();
         if (dialog.wasOKed())
@@ -249,14 +251,20 @@ public final class UpdateSiteActivator {
      *
      * @param name The name of the update site.
      * @param url  The URL of the update site.
-     *
-     * @throws IOException Cannot retrieve update sites.
      */
-    public static void confirmActivation(String name, String url) throws IOException {
+    public void confirmActivation(String name, String url) {
         GenericDialog dialog = createConfirmationDialog(String.format("%s - %s", name, url));
         dialog.showDialog();
         if (dialog.wasOKed())
             activateAndUpdate(name, url);
+    }
+
+
+    @Override
+    public String toString() {
+        return "UpdateSiteActivator{" +
+               "ijDir=" + ijDir +
+               "}";
     }
 
 }
