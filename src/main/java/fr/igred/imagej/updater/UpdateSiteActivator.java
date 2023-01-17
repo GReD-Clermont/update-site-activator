@@ -59,13 +59,19 @@ import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 
+/**
+ * Utility class to activate an update site and download its files.
+ */
 public final class UpdateSiteActivator {
 
+    /** The logger for this class. */
     private static final Logger logger = Logger.getLogger(MethodHandles.lookup().lookupClass().getSimpleName());
 
+    /** The command line interface. */
     private static final CommandLine cmd = new CommandLine(new File(IJ.getDir("imagej")), 100);
 
 
+    /** Private constructor. */
     private UpdateSiteActivator() {
     }
 
@@ -79,6 +85,15 @@ public final class UpdateSiteActivator {
     }
 
 
+    /**
+     * Finds an UpdateSite with the given name.
+     *
+     * @param name The name of the UpdateSite.
+     *
+     * @return The UpdateSite.
+     *
+     * @throws IOException Cannot retrieve update sites.
+     */
     static UpdateSite findUpdateSite(String name) throws IOException {
         return AvailableSites.getAvailableSites()
                              .values()
@@ -89,6 +104,7 @@ public final class UpdateSiteActivator {
     }
 
 
+    /** Updates Fiji. */
     public static void update() {
         new CheckForUpdates().run();
         cmd.refreshUpdateSites(new ArrayList<>(0));
@@ -96,10 +112,20 @@ public final class UpdateSiteActivator {
     }
 
 
+    /**
+     * Activates an update site with the given name and URL.
+     *
+     * @param name The name of the update site.
+     * @param url  The URL of the update site.
+     *
+     * @return {@code true} if the site was activated, {@code false} otherwise.
+     *
+     * @throws IOException Cannot retrieve update sites.
+     */
     public static boolean activate(String name, String url) throws IOException {
-        boolean activated = false;
-        boolean inactive  = true;
-        boolean urlMatch  = true;
+        boolean activated   = false;
+        boolean inactive    = true;
+        boolean urlMismatch = false;
 
         List<String> args = new ArrayList<>(2);
 
@@ -109,8 +135,8 @@ public final class UpdateSiteActivator {
             args.add(site.getName());
             args.add(siteURL);
             if (site.isActive()) inactive = false;
-            if (url.equals(siteURL)) urlMatch = false;
-            if (inactive || urlMatch) {
+            if (url.equals(siteURL)) urlMismatch = true;
+            if (inactive || urlMismatch) {
                 cmd.addOrEditUploadSite(args, false);
                 activated = true;
             }
@@ -124,7 +150,7 @@ public final class UpdateSiteActivator {
             String msg = String.format("Update site \"%s\" is already active.", name);
             logger.warning(msg);
         }
-        if (!urlMatch) {
+        if (urlMismatch) {
             String msg = String.format("Provided URL does not match known URL for \"%s\".", name);
             logger.warning(msg);
         }
@@ -132,6 +158,15 @@ public final class UpdateSiteActivator {
     }
 
 
+    /**
+     * Activates an update site with the given name.
+     *
+     * @param name The name of the update site.
+     *
+     * @return {@code true} if the site was activated, {@code false} otherwise.
+     *
+     * @throws IOException Cannot retrieve update sites.
+     */
     public static boolean activate(String name) throws IOException {
         boolean activated = false;
 
@@ -154,6 +189,15 @@ public final class UpdateSiteActivator {
     }
 
 
+    /**
+     * Activates an update site with the given name and starts the update.
+     *
+     * @param name The name of the update site.
+     *
+     * @return {@code true} if the site was activated, {@code false} otherwise.
+     *
+     * @throws IOException Cannot retrieve update sites.
+     */
     public static boolean activateAndUpdate(String name) throws IOException {
         boolean activated = activate(name);
         if (activated) {
@@ -164,6 +208,16 @@ public final class UpdateSiteActivator {
     }
 
 
+    /**
+     * Activates an update site with the given name and URL, and starts the update.
+     *
+     * @param name The name of the update site.
+     * @param url  The URL of the update site.
+     *
+     * @return {@code true} if the site was activated, {@code false} otherwise.
+     *
+     * @throws IOException Cannot retrieve update sites.
+     */
     public static boolean activateAndUpdate(String name, String url) throws IOException {
         boolean activated = activate(name, url);
         if (activated) {
@@ -174,6 +228,13 @@ public final class UpdateSiteActivator {
     }
 
 
+    /**
+     * Asks the user for a confirmation before activating the update site with the given name, and updating Fiji.
+     *
+     * @param name The name of the update site.
+     *
+     * @throws IOException Cannot retrieve update sites.
+     */
     public static void confirmActivation(String name) throws IOException {
         GenericDialog dialog = createConfirmationDialog(name);
         dialog.showDialog();
@@ -182,6 +243,15 @@ public final class UpdateSiteActivator {
     }
 
 
+    /**
+     * Asks the user for a confirmation before activating the update site with the given name and URL, and updating
+     * Fiji.
+     *
+     * @param name The name of the update site.
+     * @param url  The URL of the update site.
+     *
+     * @throws IOException Cannot retrieve update sites.
+     */
     public static void confirmActivation(String name, String url) throws IOException {
         GenericDialog dialog = createConfirmationDialog(String.format("%s - %s", name, url));
         dialog.showDialog();
